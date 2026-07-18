@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import Settings, get_settings
+from app.db_url import normalize_database_url
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
@@ -22,12 +23,15 @@ def init_engine(settings: Settings | None = None) -> AsyncEngine:
     global _engine, _sessionmaker
     if _engine is None:
         settings = settings or get_settings()
+        url, connect_args = normalize_database_url(settings.database_url)
         kwargs: dict = {"echo": settings.db_echo, "pool_pre_ping": True}
+        if connect_args:
+            kwargs["connect_args"] = connect_args
         # SQLite (used in tests) does not support pool sizing args.
-        if not settings.database_url.startswith("sqlite"):
+        if not url.startswith("sqlite"):
             kwargs["pool_size"] = settings.db_pool_size
             kwargs["max_overflow"] = settings.db_max_overflow
-        _engine = create_async_engine(settings.database_url, **kwargs)
+        _engine = create_async_engine(url, **kwargs)
         _sessionmaker = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
     return _engine
 
