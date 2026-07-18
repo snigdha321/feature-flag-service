@@ -1,0 +1,55 @@
+name: Promote image (release tag)
+
+# On a version tag (v1.2.3), promote the image already built on the main merge
+# (tagged with its commit SHA) to the release version tag.
+#
+# Uses `crane tag`, which adds a tag to the EXISTING manifest in the same repo:
+# same digest, no blob or manifest copy, no new image object. (docker buildx
+# imagetools create would wrap the manifest in a new index -> new digest every
+# time, i.e. a fresh image per promote.)
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  REGISTRY: ${{ vars.DOCR_REGISTRY || 'your-registry-name' }}
+  IMAGE: feature-flag-service
+  CRANE_VERSION: "0.20.2"
+
+jobs:
+  promote:
+    name: Retag DOCR image to the release version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to DOCR
+        # Writes Docker credentials that crane's default keychain reads.
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Install crane
+        run: |
+          set -euo pipefail
+          curl -sSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" -o /tmp/gcr.tgz
+          tar -xzf /tmp/gcr.tgz -C /usr/local/bin crane
+          crane version
+
+      - name: Retag existing image to the release version
+        run: |
+          set -euo pipefail
+          IMAGE_PATH="registry.digitalocean.com/${REGISTRY}/${IMAGE}"
+          # ${GITHUB_SHA} is the commit the tag points to — its image was pushed
+          # on the main merge. `crane tag` fails if that image doesn't exist,
+          # which correctly enforces "only release commits built on main".
+          echo "Tagging ${IMAGE_PATH}:${GITHUB_SHA} as :${GITHUB_REF_NAME}"
+          crane tag "${IMAGE_PATH}:${GITHUB_SHA}" "${GITHUB_REF_NAME}"
+
+          echo "Verifying digests match (pure retag)..."
+          SRC="$(crane digest "${IMAGE_PATH}:${GITHUB_SHA}")"
+          DST="$(crane digest "${IMAGE_PATH}:${GITHUB_REF_NAME}")"
+          echo "  ${GITHUB_SHA} -> ${SRC}"
+          echo "  ${GITHUB_REF_NAME} -> ${DST}"
+          [ "$SRC" = "$DST" ] || { echo "::error::digest mismatch after retag"; exit 1; }

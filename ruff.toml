@@ -1,0 +1,8 @@
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+# B008: FastAPI relies on `Depends()` in argument defaults (idiomatic).
+# UP042: `str, Enum` is intentional for JSON/pydantic serialization compatibility.
+ignore = ["B008", "UP042"]
