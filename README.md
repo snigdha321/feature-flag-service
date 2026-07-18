@@ -21,33 +21,29 @@ Built with FastAPI, SQLAlchemy 2.0 (async), PostgreSQL, and Alembic.
 
 ## Architecture
 
+Two request paths flow through the same router:
+
+- **Evaluate** (`App`): router → service → read-through cache → (on miss) CRUD → DB, then the evaluation engine.
+- **CRUD** (`Admin`): router → CRUD → DB, and writes call the service to invalidate the cache.
+
 ```mermaid
 flowchart LR
-    subgraph client [Clients]
-      Admin[Admin / CI]
-      App[Application]
-    end
-
-    subgraph svc [Feature Flag Service]
-      direction TB
-      Router[FastAPI routers]
-      Service[Service layer]
-      Cache{In-memory TTL cache}
-      Eval[Evaluation engine]
-      CRUD[CRUD / persistence]
-    end
-
+    Admin[Admin / CI]
+    App[Application]
+    Router[FastAPI routers]
+    Service[Service layer]
+    Eval[Evaluation engine]
+    Cache[(In-memory TTL cache)]
+    CRUD[CRUD / persistence]
     DB[(PostgreSQL)]
 
-    Admin -->|"CRUD /flags"| Router
-    App -->|"POST /flags/key/evaluate"| Router
-    Router --> Service
-    Service -->|read-through| Cache
-    Cache -->|miss| CRUD
-    CRUD --> DB
+    App -->|evaluate| Router --> Service
+    Service --> Cache
+    Service -->|cache miss| CRUD
     Service --> Eval
-    Router -->|"writes invalidate"| Cache
-    CRUD -->|"create/update/delete"| DB
+
+    Admin -->|CRUD /flags| Router --> CRUD --> DB
+    Router -.->|writes invalidate| Service
 ```
 
 ### Evaluation flow
@@ -112,8 +108,9 @@ sequenceDiagram
 
     Note over C,DB: Write path
     C->>R: PUT/POST/DELETE /flags/{key}
-    R->>DB: persist change
-    R->>$: invalidate(key)
+    R->>DB: crud persists change
+    R->>S: invalidate(key)
+    S->>$: invalidate(key)
 ```
 
 ## Project layout
