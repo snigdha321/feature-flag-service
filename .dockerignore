@@ -1,0 +1,25 @@
+# Keep the build context small and free of secrets / local cruft.
+.git
+.github
+.venv
+env/
+__pycache__/
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+coverage.xml
+*.db
+
+# Never ship local environment / secrets into the image or build context.
+.env
+.env.*
+!.env.example
+
+# Docs and dev-only files not needed at runtime.
+README.md
+docker-compose.yml
+scripts/
+tests/

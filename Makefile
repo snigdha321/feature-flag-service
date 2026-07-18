@@ -1,4 +1,4 @@
-.PHONY: help venv install install-prod run migrate revision test lint typecheck fmt cov up down build clean
+.PHONY: help venv install install-prod run migrate revision test lint typecheck fmt cov up down build smoke smoke-pytest clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -45,6 +45,12 @@ up: ## Start the full stack (Postgres + API) via docker compose
 
 down: ## Stop the stack and remove volumes
 	docker compose down -v
+
+smoke: ## Run the end-to-end flow against a running API (BASE_URL overridable)
+	./scripts/smoke_test.sh $(BASE_URL)
+
+smoke-pytest: ## Run the smoke flow as pytest against a running API (SMOKE_BASE_URL overridable)
+	pytest -m smoke --no-cov
 
 build: ## Build the Docker image
 	docker build -t feature-flag-service:local .
