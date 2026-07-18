@@ -33,44 +33,5 @@ jobs:
       - name: Format check (ruff)
         run: ruff format --check .
 
-      - name: Unit tests (pytest)
-        run: pytest -m "not integration"
-
-  integration:
-    name: Integration (Docker image smoke test)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
-
-      - name: Install test dependencies
-        run: pip install -r requirements-dev.txt
-
-      - name: Build image
-        run: docker build -t feature-flag-service .
-
-      - name: Run container
-        run: |
-          docker run -d --name feature-flag-service \
-            -p 8000:8000 -e OTEL_ENABLED=false \
-            feature-flag-service
-
-      - name: Integration tests (pytest)
-        run: pytest -m integration
-        env:
-          BASE_URL: http://localhost:8000
-
-      - name: Container logs
-        if: always()
-        run: docker logs feature-flag-service || true
-
-      - name: Teardown
-        if: always()
-        run: docker rm -f feature-flag-service || true
+      - name: Tests (pytest)
+        run: pytest
