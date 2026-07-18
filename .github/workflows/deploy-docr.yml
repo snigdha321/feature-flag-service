@@ -1,0 +1,46 @@
+name: Build & push to DOCR
+
+# A merged PR to main produces a push to main; that is our trigger.
+on:
+  push:
+    branches: [main]
+
+env:
+  # DigitalOcean Container Registry name (registry.digitalocean.com/<name>).
+  # TODO: replace with your registry name, or set repo variable DOCR_REGISTRY.
+  REGISTRY: ${{ vars.DOCR_REGISTRY || 'your-registry-name' }}
+  IMAGE: feature-flag-service
+
+jobs:
+  build-and-push:
+    name: Build image & push to DOCR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to DOCR
+        # Writes Docker credentials with a short-lived registry token.
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Build image
+        run: |
+          IMAGE_PATH="registry.digitalocean.com/${REGISTRY}/${IMAGE}"
+          # Always tag with the commit SHA and the branch name; add :latest for main.
+          TAGS="${GITHUB_SHA} ${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then TAGS="${TAGS} latest"; fi
+          echo "IMAGE_PATH=${IMAGE_PATH}" >> "$GITHUB_ENV"
+          echo "TAGS=${TAGS}" >> "$GITHUB_ENV"
+          BUILD_ARGS=""
+          for t in ${TAGS}; do BUILD_ARGS="${BUILD_ARGS} -t ${IMAGE_PATH}:${t}"; done
+          # Bake the commit SHA into the image so `/` can report what's running.
+          docker build ${BUILD_ARGS} --build-arg GIT_SHA="${GITHUB_SHA}" .
+
+      - name: Push image
+        run: |
+          for t in ${TAGS}; do docker push "${IMAGE_PATH}:${t}"; done

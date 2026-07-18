@@ -1,0 +1,47 @@
+name: Deploy to App Platform
+
+# Manual only: pick the image tag to ship (e.g. a release version like v1.2.3,
+# or `latest`, or a commit SHA). The image must already exist in DOCR — release
+# versions are created by the "Promote image" workflow on a git tag.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "DOCR image tag to deploy (e.g. v1.2.3, latest, or a commit SHA)"
+        required: true
+        default: latest
+
+# Never let two deployments to the same app overlap.
+concurrency:
+  group: deploy-app-platform
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy image to App Platform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check DOCR_REGISTRY is set
+        env:
+          DOCR_REGISTRY: ${{ vars.DOCR_REGISTRY }}
+        run: |
+          [ -n "${DOCR_REGISTRY:-}" ] || { echo "::error::Repo variable DOCR_REGISTRY is not set."; exit 1; }
+
+      # The action reads app.yaml, expands ${IMAGE_TAG} and ${DOCR_REGISTRY} from
+      # the env below, resolves the app by its `name`, and creates or updates it.
+      - name: Deploy to App Platform
+        uses: digitalocean/app_action/deploy@v2
+        env:
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+          DOCR_REGISTRY: ${{ vars.DOCR_REGISTRY }}
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          app_spec_location: app.yaml
+          print_build_logs: "true"
+          print_deploy_logs: "true"
