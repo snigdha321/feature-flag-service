@@ -29,12 +29,13 @@ test: ## Run the test suite
 cov: ## Run tests with coverage report
 	pytest --cov=app --cov-report=html --cov-report=term-missing
 
-lint: ## Lint with ruff
-	ruff check app tests
+lint: ## Lint + format check with ruff (whole repo, matches CI)
+	ruff check --output-format=github .
+	ruff format --check .
 
-fmt: ## Auto-format / fix with ruff
-	ruff check --fix app tests
-	ruff format app tests
+fmt: ## Auto-format / fix with ruff (whole repo)
+	ruff check --fix .
+	ruff format .
 
 typecheck: ## Static type-check with mypy
 	mypy app
