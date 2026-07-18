@@ -27,8 +27,10 @@ ingress:
     - component:
         name: feature-flag-service
       match:
-        authority:
-          exact: ""
+        # Match all hosts. DO ingress only supports *exact* authority matching,
+        # so an empty/incorrect authority silently drops all external traffic
+        # (only the platform's direct /health probe reached the container).
+        # Omitting `authority` routes every host on this path prefix.
         path:
           prefix: /
 name: feature-flag-app

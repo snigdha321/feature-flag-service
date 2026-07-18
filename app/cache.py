@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 from app.domain import FlagSnapshot
 from app.telemetry import CACHE_EVENTS
@@ -59,6 +60,30 @@ class FlagCache:
     def clear(self) -> None:
         with self._lock:
             self._store.clear()
+
+    def describe(self) -> dict[str, Any]:
+        """Return a JSON-serializable view of the cache for introspection.
+
+        Reports the configured TTL, the number of entries, and per-entry
+        metadata (key, remaining TTL, whether it is expired-but-retained, and a
+        summary of the cached snapshot). Reads are non-mutating: expired entries
+        are reported, not evicted.
+        """
+        now = self._clock()
+        with self._lock:
+            entries = [
+                {
+                    "key": key,
+                    "enabled": snapshot.enabled,
+                    "default_state": snapshot.default_state,
+                    "rules": len(snapshot.rules),
+                    "expires_in_seconds": round(expires_at - now, 3),
+                    "expired": now >= expires_at,
+                }
+                for key, (snapshot, expires_at) in self._store.items()
+            ]
+        entries.sort(key=lambda entry: str(entry["key"]))
+        return {"ttl_seconds": self._ttl, "size": len(entries), "entries": entries}
 
     def __len__(self) -> int:
         with self._lock:
