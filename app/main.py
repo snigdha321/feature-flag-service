@@ -68,6 +68,16 @@ def create_app() -> FastAPI:
     app.include_router(flags.router)
     app.include_router(evaluation.router)
 
+    @app.get("/", tags=["meta"])
+    async def root() -> dict[str, str]:
+        """Landing route so the service root is discoverable instead of a 404."""
+        return {
+            "service": settings.app_name,
+            "version": __version__,
+            "docs": "/docs",
+            "health": "/health",
+        }
+
     @app.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
