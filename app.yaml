@@ -35,6 +35,11 @@ services:
         scope: RUN_AND_BUILD_TIME
         value: ${IMAGE_TAG}
     http_port: 8000
+    # HTTP readiness check against the app's liveness endpoint (does not touch
+    # the database), on the same port the platform routes to.
+    health_check:
+      http_path: /health
+      port: 8000
     image:
       registry: ${DOCR_REGISTRY_2}
       registry_type: DOCR
