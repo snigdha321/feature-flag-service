@@ -4,13 +4,15 @@ Revision ID: 0001_initial
 Revises:
 Create Date: 2026-07-18 00:00:00.000000
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0001_initial"
@@ -30,9 +32,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=256), nullable=False),
         sa.Column("description", sa.String(length=1024), nullable=True),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column(
-            "default_state", sa.Boolean(), nullable=False, server_default=sa.false()
-        ),
+        sa.Column("default_state", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -46,9 +46,7 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_index(
-        "ix_feature_flags_key", "feature_flags", ["key"], unique=True
-    )
+    op.create_index("ix_feature_flags_key", "feature_flags", ["key"], unique=True)
 
     op.create_table(
         "flag_rules",
@@ -60,13 +58,10 @@ def upgrade() -> None:
         sa.Column("values", JSONVariant, nullable=False),
         sa.Column("outcome", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("rollout_percentage", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["flag_id"], ["feature_flags.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["flag_id"], ["feature_flags.id"], ondelete="CASCADE"),
         sa.UniqueConstraint("flag_id", "priority", name="uq_flag_rule_priority"),
         sa.CheckConstraint(
-            "rollout_percentage IS NULL OR "
-            "(rollout_percentage >= 0 AND rollout_percentage <= 100)",
+            "rollout_percentage IS NULL OR (rollout_percentage >= 0 AND rollout_percentage <= 100)",
             name="ck_rollout_percentage_range",
         ),
     )
