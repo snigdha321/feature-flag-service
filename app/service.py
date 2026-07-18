@@ -30,6 +30,7 @@ async def load_snapshot(session: AsyncSession, key: str) -> FlagSnapshot:
     cache = get_cache()
     cached = cache.get(key)
     if cached is not None:
+        log.info("snapshot.load", flag_key=key, source="cache")
         return cached
 
     flag = await crud.get_flag(session, key)
@@ -38,6 +39,7 @@ async def load_snapshot(session: AsyncSession, key: str) -> FlagSnapshot:
 
     snapshot = FlagSnapshot.from_orm(flag)
     cache.set(snapshot)
+    log.info("snapshot.load", flag_key=key, source="db")
     return snapshot
 
 
