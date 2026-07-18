@@ -41,13 +41,14 @@ flowchart LR
 
     Admin -->|"CRUD /flags"| Router
     App -->|"POST /flags/key/evaluate"| Router
-    Router --> Service
+    Router -->|evaluate| Service
+    Router -->|"CRUD (direct)"| CRUD
     Service -->|read-through| Cache
-    Cache -->|miss| CRUD
+    Service -->|miss| CRUD
     CRUD --> DB
     Service --> Eval
-    Router -->|"writes invalidate"| Cache
-    CRUD -->|"create/update/delete"| DB
+    Router -->|"writes invalidate"| Service
+    Service --> Cache
 ```
 
 ### Evaluation flow
@@ -112,8 +113,9 @@ sequenceDiagram
 
     Note over C,DB: Write path
     C->>R: PUT/POST/DELETE /flags/{key}
-    R->>DB: persist change
-    R->>$: invalidate(key)
+    R->>DB: crud persists change
+    R->>S: invalidate(key)
+    S->>$: invalidate(key)
 ```
 
 ## Project layout
