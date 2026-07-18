@@ -28,11 +28,6 @@ class Settings(BaseSettings):
     # Cache
     cache_ttl_seconds: float = 30.0
 
-    # Admin
-    # Shared secret required (via the `x-admin-token` header) to reach the
-    # /admin/* endpoints. When unset the admin endpoints are disabled entirely.
-    admin_token: str | None = None
-
     # Evaluation
     # Safe result served when the database is unavailable and no cached snapshot
     # exists. Defaults to OFF so a degraded backend never silently enables flags.

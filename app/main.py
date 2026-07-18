@@ -15,7 +15,7 @@ from app.config import get_settings
 from app.db import dispose_engine, init_engine
 from app.errors import register_exception_handlers
 from app.logging_config import configure_logging, get_logger, request_id_var
-from app.routers import admin, evaluation, flags, health
+from app.routers import evaluation, flags, health
 from app.telemetry import setup_tracing
 
 log = get_logger(__name__)
@@ -67,7 +67,6 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(flags.router)
     app.include_router(evaluation.router)
-    app.include_router(admin.router)
 
     @app.get("/", tags=["meta"])
     async def root() -> dict[str, str]:
