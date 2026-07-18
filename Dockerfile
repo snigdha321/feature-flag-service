@@ -23,5 +23,7 @@ USER appuser
 
 EXPOSE 8000
 
-# Graceful shutdown: uvicorn handles SIGTERM and drains connections.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Listen on $PORT when the platform provides it (DigitalOcean App Platform sets
+# PORT to the service's http_port); default to 8000 locally. `exec` keeps
+# uvicorn as PID 1 so it receives SIGTERM and shuts down gracefully.
+CMD ["/bin/sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
