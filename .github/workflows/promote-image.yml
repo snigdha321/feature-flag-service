@@ -12,7 +12,7 @@ on:
     tags: ["v*"]
 
 env:
-  REGISTRY: ${{ vars.DOCR_REGISTRY || 'your-registry-name' }}
+  REGISTRY: ${{ vars.DOCR_REGISTRY_2 || 'your-registry-name' }}
   IMAGE: feature-flag-service
   CRANE_VERSION: "0.20.2"
 
@@ -24,7 +24,7 @@ jobs:
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN_2 }}
 
       - name: Log in to DOCR
         # Writes Docker credentials that crane's default keychain reads.

@@ -7,7 +7,7 @@
 # it exists — no app ID needed).
 #
 # Placeholders filled at deploy time:
-#   DOCR_REGISTRY  -> DOCR registry name (repo variable DOCR_REGISTRY)
+#   DOCR_REGISTRY_2  -> DOCR registry name (repo variable DOCR_REGISTRY_2)
 #   IMAGE_TAG      -> image tag being deployed (workflow input)
 #
 # NOTE: this file is authoritative — changes made in the DO dashboard (envs,
@@ -36,7 +36,7 @@ services:
         value: ${IMAGE_TAG}
     http_port: 8000
     image:
-      registry: ${DOCR_REGISTRY}
+      registry: ${DOCR_REGISTRY_2}
       registry_type: DOCR
       repository: feature-flag-service
       tag: ${IMAGE_TAG}
