@@ -38,6 +38,15 @@ CACHE_EVENTS = Counter(
     labelnames=("event",),
 )
 
+# Evaluations served in degraded mode because the database was unavailable.
+# ``source`` is "stale_cache" (served an expired snapshot) or "default"
+# (no snapshot available, fell back to the configured safe default).
+EVALUATION_FALLBACKS_TOTAL = Counter(
+    "feature_flag_evaluation_fallbacks_total",
+    "Evaluations served from a degraded-mode fallback when the database was unavailable",
+    labelnames=("source",),
+)
+
 
 def setup_tracing(app: FastAPI, settings: Settings) -> None:
     """Instrument the app with OpenTelemetry if enabled."""

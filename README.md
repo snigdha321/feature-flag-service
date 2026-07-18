@@ -68,6 +68,54 @@ flowchart TD
     Loop -->|no match| Default["Return default_state (DEFAULT)"]
 ```
 
+### Request lifecycle
+
+The sequence below maps a request end to end across the caching and storage
+layers, including the read-through path, write-invalidation, and the graceful
+fallback when the database is unavailable.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant R as Router
+    participant S as Service
+    participant $ as TTL cache
+    participant DB as PostgreSQL
+    participant E as Evaluation engine
+
+    Note over C,E: Evaluate (read path)
+    C->>R: POST /flags/{key}/evaluate {context}
+    R->>R: Validate context payload (Pydantic)
+    R->>S: evaluate_flag(key, context)
+    S->>$: get(key)
+    alt cache hit
+        $-->>S: snapshot
+    else cache miss / expired
+        S->>DB: SELECT flag + rules
+        alt database available
+            DB-->>S: rows
+            S->>$: set(snapshot)
+        else database unavailable
+            S->>$: get_stale(key)
+            alt stale snapshot present
+                $-->>S: stale snapshot
+            else nothing cached
+                Note over S: fall back to safe default_state
+            end
+        end
+    end
+    S->>E: evaluate(snapshot, context)
+    E-->>S: decision + reason
+    S-->>R: EvaluationResponse
+    R-->>C: 200 {enabled, reason}
+
+    Note over C,DB: Write path
+    C->>R: PUT/POST/DELETE /flags/{key}
+    R->>DB: persist change
+    R->>$: invalidate(key)
+```
+
 ## Project layout
 
 ```
@@ -212,6 +260,41 @@ Flag definitions are cached in-process as immutable snapshots with a configurabl
 (`CACHE_TTL_SECONDS`, default 30s). Evaluation reads through the cache; any
 create/update/delete invalidates the affected key so changes take effect immediately.
 
+## Validation & graceful degradation
+
+### Context payloads
+
+Evaluation `context` objects are validated strictly (they are attacker-influenced
+input on the hot path):
+
+- At most 64 attributes; keys must be non-empty strings up to 128 characters.
+- Values must be JSON scalars (string, number, boolean, `null`) or lists of scalars.
+  Nested objects are rejected so operator matching stays well-defined.
+- String values are capped at 1024 characters and lists at 100 items.
+
+Invalid payloads return `422` with the standard error envelope.
+
+```jsonc
+// accepted
+{ "context": { "userId": "u-42", "age": 30, "beta": true, "regions": ["EU", "US"] } }
+
+// rejected (422) — nested object
+{ "context": { "user": { "id": "u-42" } } }
+```
+
+### Database-unavailable fallback
+
+Evaluation never returns a `500` just because the database is down. On a cache
+miss when the database is unreachable, the service degrades gracefully:
+
+1. If a previously cached (possibly stale) snapshot exists, it is used and the
+   normal reason is returned (`feature_flag_cache_events_total{event="stale"}`).
+2. Otherwise the flag resolves to the configured safe default
+   (`EVALUATION_FALLBACK_ENABLED`, default OFF) with reason `DEFAULT`.
+
+Both paths increment `feature_flag_evaluation_fallbacks_total{source="stale_cache"|"default"}`
+so degraded operation is observable.
+
 ## Validation & errors
 
 Requests are validated by Pydantic (slug keys, operator enum, `rollout_percentage`
@@ -248,6 +331,7 @@ back to a disposable SQLite database otherwise so the suite runs anywhere.
 | ----------------------------- | -------------------------------- | ------------------------------- |
 | `DATABASE_URL`                | `postgresql+asyncpg://...`       | Async SQLAlchemy database URL   |
 | `CACHE_TTL_SECONDS`           | `30`                             | Flag cache TTL                  |
+| `EVALUATION_FALLBACK_ENABLED` | `false`                          | Safe default when DB is down    |
 | `LOG_LEVEL` / `LOG_JSON`      | `INFO` / `true`                  | Logging verbosity / format      |
 | `OTEL_ENABLED`                | `false`                          | Enable OpenTelemetry tracing    |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | -                                | OTLP collector endpoint         |
