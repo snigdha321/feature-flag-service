@@ -10,6 +10,7 @@ from sqlalchemy.pool import NullPool
 
 from alembic import context
 from app.config import get_settings
+from app.db_url import normalize_database_url
 from app.models import Base
 
 config = context.config
@@ -17,8 +18,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Inject the app's database URL so migrations and the app stay in sync.
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Inject the app's database URL so migrations and the app stay in sync. Normalize
+# it so managed-Postgres URLs (async driver + sslmode) work here too.
+_db_url, _connect_args = normalize_database_url(get_settings().database_url)
+config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = Base.metadata
 
@@ -50,6 +53,7 @@ async def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=NullPool,
+        connect_args=_connect_args,
     )
     async with connectable.connect() as connection:
         await connection.run_sync(_do_run_migrations)
