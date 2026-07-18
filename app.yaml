@@ -15,6 +15,11 @@
 alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DOMAIN_FAILED
+envs:
+- key: DATABASE_URL
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:uCGloLV84zywNGpINgKoapzBv5okqTiF:L483I8i3sjjQenGBTvDT+zGN1ZyXF1AdU8b1sbosqQ60nQ/ckF1OuNgsPsG+WIdecgbteWmTOTSkNgy+4fai5ZO5WtaIW20yfhNkQVkt6uTpFXGggprym3JWVnsrii18imLa3Ylye/F/QewOahTdA1K48FvmuB1KtDVoocOcsG3r27KGPQ7tpS+tBzf1mDesdD8MnQBv2Wk=]
 features:
   - buildpack-stack=ubuntu-22
 ingress:
@@ -26,7 +31,7 @@ ingress:
           exact: ""
         path:
           prefix: /
-name: do-test
+name: feature-flag-app
 region: blr
 services:
   - name: feature-flag-service
