@@ -27,21 +27,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check DOCR_REGISTRY is set
+      - name: Check DOCR_REGISTRY_2 is set
         env:
-          DOCR_REGISTRY: ${{ vars.DOCR_REGISTRY }}
+          DOCR_REGISTRY_2: ${{ vars.DOCR_REGISTRY_2 }}
         run: |
-          [ -n "${DOCR_REGISTRY:-}" ] || { echo "::error::Repo variable DOCR_REGISTRY is not set."; exit 1; }
+          [ -n "${DOCR_REGISTRY_2:-}" ] || { echo "::error::Repo variable DOCR_REGISTRY_2 is not set."; exit 1; }
 
-      # The action reads app.yaml, expands ${IMAGE_TAG} and ${DOCR_REGISTRY} from
+      # The action reads app.yaml, expands ${IMAGE_TAG} and ${DOCR_REGISTRY_2} from
       # the env below, resolves the app by its `name`, and creates or updates it.
       - name: Deploy to App Platform
         uses: digitalocean/app_action/deploy@v2
         env:
           IMAGE_TAG: ${{ github.event.inputs.image_tag }}
-          DOCR_REGISTRY: ${{ vars.DOCR_REGISTRY }}
+          DOCR_REGISTRY_2: ${{ vars.DOCR_REGISTRY_2 }}
         with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN_2 }}
           app_spec_location: app.yaml
           print_build_logs: "true"
           print_deploy_logs: "true"

@@ -7,8 +7,8 @@ on:
 
 env:
   # DigitalOcean Container Registry name (registry.digitalocean.com/<name>).
-  # TODO: replace with your registry name, or set repo variable DOCR_REGISTRY.
-  REGISTRY: ${{ vars.DOCR_REGISTRY || 'your-registry-name' }}
+  # TODO: replace with your registry name, or set repo variable DOCR_REGISTRY_2.
+  REGISTRY: ${{ vars.DOCR_REGISTRY_2 || 'your-registry-name' }}
   IMAGE: feature-flag-service
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN_2 }}
 
       - name: Log in to DOCR
         # Writes Docker credentials with a short-lived registry token.
