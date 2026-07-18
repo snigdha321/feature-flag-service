@@ -1,59 +1,87 @@
-"""Normalize database URLs for the async (asyncpg) driver.
+"""Normalize database URLs for the async engine.
 
-Managed Postgres providers (e.g. DigitalOcean) hand out libpq-style URLs like
-``postgresql://user:pass@host:25060/db?sslmode=require``. Two adjustments are
-needed before SQLAlchemy's asyncpg dialect can use them:
+Managed Postgres providers (e.g. DigitalOcean) hand out libpq-style URLs such as
+``postgresql://user:pass@host:25060/defaultdb?sslmode=require``. Two things about
+that URL are incompatible with SQLAlchemy's async engine:
 
-1. The scheme must select the async driver (``postgresql+asyncpg``).
-2. ``sslmode`` is a libpq concept that asyncpg does not accept as a URL query
-   argument; it must be translated into an ``ssl`` connect argument.
+1. The bare ``postgresql://`` scheme resolves to the *synchronous* psycopg driver.
+   The async engine needs an async driver, i.e. ``postgresql+asyncpg://``.
+2. ``sslmode`` (and friends like ``sslrootcert``) are libpq connection options.
+   asyncpg does not accept them as keyword arguments and raises ``TypeError`` if
+   they leak through. They must be translated into an ``ssl`` connect argument.
+
+``normalize_database_url`` returns a cleaned SQLAlchemy URL plus the connect args
+to hand to ``create_async_engine`` / ``async_engine_from_config``.
 """
 
 from __future__ import annotations
 
 import ssl
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-_ASYNC_SCHEME = "postgresql+asyncpg"
-_SYNC_SCHEMES = {"postgres", "postgresql", "postgresql+psycopg2", "postgresql+psycopg"}
-# libpq sslmode values that mean "encrypt but do not verify the server cert".
-_UNVERIFIED_MODES = {"require", "prefer", "allow", "true", "1", "on"}
-_DISABLED_MODES = {"disable", "false", "0", "off"}
+_ASYNC_DRIVER = "postgresql+asyncpg"
+
+# libpq-only query parameters that asyncpg rejects as keyword arguments.
+_LIBPQ_SSL_PARAMS = {
+    "sslmode",
+    "sslrootcert",
+    "sslcert",
+    "sslkey",
+    "sslpassword",
+    "channel_binding",
+}
 
 
-def normalize_database_url(url: str) -> tuple[str, dict]:
-    """Return an asyncpg-compatible URL and matching connect_args.
+def normalize_database_url(url: str) -> tuple[str, dict[str, Any]]:
+    """Return an async-ready URL and connect args for the given database URL.
 
-    Non-Postgres URLs (e.g. ``sqlite+aiosqlite``) are returned unchanged with
-    empty connect_args.
+    Non-Postgres URLs (e.g. ``sqlite+aiosqlite``) are returned unchanged with no
+    connect args, so this is safe to call unconditionally.
     """
     parts = urlsplit(url)
-    scheme = parts.scheme
-
-    if scheme not in _SYNC_SCHEMES and scheme != _ASYNC_SCHEME:
-        # Not a Postgres URL (e.g. sqlite) - leave it alone.
+    if not parts.scheme.startswith("postgres"):
         return url, {}
 
-    if scheme in _SYNC_SCHEMES:
-        scheme = _ASYNC_SCHEME
+    scheme = _ASYNC_DRIVER if parts.scheme in ("postgres", "postgresql") else parts.scheme
 
-    query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    # asyncpg understands neither `sslmode` nor a plain `ssl` string here.
-    mode = query.pop("sslmode", None) or query.pop("ssl", None)
-
-    connect_args: dict = {}
-    if mode is not None:
-        mode = mode.strip().lower()
-        if mode in _DISABLED_MODES:
-            connect_args["ssl"] = False
+    sslmode: str | None = None
+    sslrootcert: str | None = None
+    remaining: list[tuple[str, str]] = []
+    for key, value in parse_qsl(parts.query, keep_blank_values=True):
+        lowered = key.lower()
+        if lowered == "sslmode":
+            sslmode = value.lower()
+        elif lowered == "sslrootcert":
+            sslrootcert = value
+        elif lowered in _LIBPQ_SSL_PARAMS:
+            continue  # drop other libpq-only params asyncpg can't consume
         else:
-            ctx = ssl.create_default_context()
-            if mode in _UNVERIFIED_MODES:
-                # Mirror libpq `require`: encrypt without CA/hostname checks.
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-            # verify-ca / verify-full keep the default verifying context.
-            connect_args["ssl"] = ctx
+            remaining.append((key, value))
 
-    normalized = urlunsplit((scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
-    return normalized, connect_args
+    connect_args: dict[str, Any] = {}
+    ssl_option = _ssl_for_sslmode(sslmode, sslrootcert)
+    if ssl_option is not None:
+        connect_args["ssl"] = ssl_option
+
+    cleaned = parts._replace(scheme=scheme, query=urlencode(remaining))
+    return urlunsplit(cleaned), connect_args
+
+
+def _ssl_for_sslmode(sslmode: str | None, sslrootcert: str | None) -> bool | ssl.SSLContext | None:
+    """Translate a libpq ``sslmode`` into an asyncpg ``ssl`` connect argument."""
+    if sslmode is None:
+        return None
+    if sslmode == "disable":
+        return False
+
+    context = ssl.create_default_context(cafile=sslrootcert or None)
+    if sslmode in ("allow", "prefer", "require"):
+        # Encrypt the connection but do not verify the server certificate,
+        # matching libpq's `require` semantics.
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    elif sslmode == "verify-ca":
+        context.check_hostname = False
+    # "verify-full" keeps the default context (verify certificate + hostname).
+    return context

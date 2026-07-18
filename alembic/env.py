@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy.pool import NullPool
 
 from alembic import context
@@ -18,8 +18,8 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Normalize the app's database URL (async driver + SSL handling) so migrations
-# and the app connect identically.
+# Inject the app's database URL so migrations and the app stay in sync. Normalize
+# it so managed-Postgres URLs (async driver + sslmode) work here too.
 _db_url, _connect_args = normalize_database_url(get_settings().database_url)
 config.set_main_option("sqlalchemy.url", _db_url)
 
@@ -49,8 +49,9 @@ def _do_run_migrations(connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    connectable = create_async_engine(
-        _db_url,
+    connectable = async_engine_from_config(
+        config.get_section(config.config_ini_section, {}),
+        prefix="sqlalchemy.",
         poolclass=NullPool,
         connect_args=_connect_args,
     )
