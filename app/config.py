@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # Cache
     cache_ttl_seconds: float = 30.0
 
+    # Evaluation
+    # Safe result served when the database is unavailable and no cached snapshot
+    # exists. Defaults to OFF so a degraded backend never silently enables flags.
+    evaluation_fallback_enabled: bool = False
+
     # OpenTelemetry
     otel_enabled: bool = False
     otel_service_name: str = "feature-flag-service"

@@ -31,12 +31,21 @@ class FlagCache:
                 return None
             snapshot, expires_at = entry
             if self._clock() >= expires_at:
-                # Expired; drop it and treat as a miss.
-                del self._store[key]
+                # Expired: treat as a miss, but retain the entry so it can serve
+                # as a stale fallback if the database is unavailable. It will be
+                # overwritten on the next successful load or dropped on invalidate.
                 CACHE_EVENTS.labels(event="expired").inc()
                 return None
             CACHE_EVENTS.labels(event="hit").inc()
             return snapshot
+
+    def get_stale(self, key: str) -> FlagSnapshot | None:
+        """Return a cached snapshot ignoring TTL, for degraded-mode fallback."""
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is None:
+                return None
+            return entry[0]
 
     def set(self, snapshot: FlagSnapshot) -> None:
         with self._lock:

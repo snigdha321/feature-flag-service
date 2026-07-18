@@ -11,6 +11,38 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 KEY_PATTERN = re.compile(r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
 
+# Bounds for evaluation context payloads. Contexts are attacker-influenced input
+# on the hot path, so they are validated strictly rather than accepted verbatim.
+MAX_CONTEXT_ATTRIBUTES = 64
+MAX_CONTEXT_KEY_LENGTH = 128
+MAX_CONTEXT_VALUE_LENGTH = 1024
+MAX_CONTEXT_LIST_LENGTH = 100
+
+# Only JSON scalars (and lists of scalars) are meaningful operands for the rule
+# operators; nested objects are rejected so matching stays well-defined.
+_CONTEXT_SCALARS = (str, bool, int, float)
+
+
+def _validate_context_value(key: str, value: Any) -> None:
+    if value is None or isinstance(value, _CONTEXT_SCALARS):
+        if isinstance(value, str) and len(value) > MAX_CONTEXT_VALUE_LENGTH:
+            raise ValueError(
+                f"context value for '{key}' exceeds {MAX_CONTEXT_VALUE_LENGTH} characters"
+            )
+        return
+    if isinstance(value, list):
+        if len(value) > MAX_CONTEXT_LIST_LENGTH:
+            raise ValueError(f"context value for '{key}' exceeds {MAX_CONTEXT_LIST_LENGTH} items")
+        for item in value:
+            if item is not None and not isinstance(item, _CONTEXT_SCALARS):
+                raise ValueError(f"context value for '{key}' must be a list of scalars")
+            if isinstance(item, str) and len(item) > MAX_CONTEXT_VALUE_LENGTH:
+                raise ValueError(
+                    f"context value for '{key}' exceeds {MAX_CONTEXT_VALUE_LENGTH} characters"
+                )
+        return
+    raise ValueError(f"context value for '{key}' must be a scalar or list of scalars")
+
 
 class Operator(str, Enum):
     """Supported comparison operators for rule matching."""
@@ -128,6 +160,19 @@ class EvaluationRequest(BaseModel):
         default_factory=dict,
         description="User/request attributes, e.g. userId, subscriptionTier, region",
     )
+
+    @field_validator("context")
+    @classmethod
+    def _validate_context(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if len(value) > MAX_CONTEXT_ATTRIBUTES:
+            raise ValueError(f"context may not exceed {MAX_CONTEXT_ATTRIBUTES} attributes")
+        for key, val in value.items():
+            if not isinstance(key, str) or not key:
+                raise ValueError("context keys must be non-empty strings")
+            if len(key) > MAX_CONTEXT_KEY_LENGTH:
+                raise ValueError(f"context key '{key}' exceeds {MAX_CONTEXT_KEY_LENGTH} characters")
+            _validate_context_value(key, val)
+        return value
 
 
 class EvaluationResponse(BaseModel):
