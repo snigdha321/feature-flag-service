@@ -17,14 +17,6 @@ BASE=https://feature-flag-app-mft8n.ondigitalocean.app
 # BASE=http://localhost:8000
 ```
 
-The admin endpoints (`/admin/*`) require a shared secret sent as the
-`x-admin-token` header, matched against the server's `ADMIN_TOKEN`. Export it if
-you have it configured:
-
-```bash
-ADMIN_TOKEN=your-secret-here
-```
-
 ### Error envelope
 
 Every error responds with a consistent shape:
@@ -382,21 +374,8 @@ curl -s -X POST $BASE/flags/demo/evaluate -H 'content-type: application/json' \
 ## 7. Cache inspection
 
 The cache is a **process-local, in-memory TTL cache** (default TTL 30s). It is
-per-instance and ephemeral (cleared on restart/redeploy). Two ways to observe it:
-
-### a) Admin endpoint (requires `ADMIN_TOKEN` configured on the server)
-
-```bash
-# Full cache contents: ttl, size, and per-entry key/enabled/rules/remaining-ttl/expired
-curl -s $BASE/admin/cache -H "x-admin-token: $ADMIN_TOKEN" | jq
-
-# Auth behavior:
-curl -s -o /dev/null -w '%{http_code}\n' $BASE/admin/cache                          # 401 (no token)
-curl -s -o /dev/null -w '%{http_code}\n' $BASE/admin/cache -H 'x-admin-token: nope' # 401 (wrong)
-# If the server has no ADMIN_TOKEN configured, the endpoint is disabled -> 503
-```
-
-### b) Prometheus counters (always available)
+per-instance and ephemeral (cleared on restart/redeploy). Observe it via the
+Prometheus counters:
 
 ```bash
 curl -s $BASE/metrics | grep '^feature_flag_cache_events_total'
@@ -429,8 +408,6 @@ curl -s -X POST $BASE/flags/cache-demo/evaluate -H 'content-type: application/js
 
 # Watch miss/hit counters go up:
 curl -s $BASE/metrics | grep '^feature_flag_cache_events_total'
-# If admin is enabled, see the cached entry directly:
-curl -s $BASE/admin/cache -H "x-admin-token: $ADMIN_TOKEN" | jq '.entries[] | select(.key=="cache-demo")'
 ```
 
 ### Invalidation on UPDATE (the key check)
@@ -459,8 +436,6 @@ curl -s -X DELETE $BASE/flags/cache-demo >/dev/null
 # Entry removed from cache; evaluating now -> 404 not_found (single eval)
 curl -s -o /dev/null -w '%{http_code}\n' -X POST $BASE/flags/cache-demo/evaluate \
   -H 'content-type: application/json' -d '{"context":{"tier":"premium"}}'   # 404
-# Confirm it's gone from the admin cache view (if enabled):
-curl -s $BASE/admin/cache -H "x-admin-token: $ADMIN_TOKEN" | jq '[.entries[].key] | index("cache-demo")'  # null
 ```
 
 ### TTL expiry (bypassing explicit invalidation)
@@ -506,6 +481,5 @@ curl -s -X POST $BASE/flags/demo/evaluate -H 'content-type: application/json' \
 | Delete flag | `DELETE $BASE/flags/{key}` |
 | Evaluate | `POST $BASE/flags/{key}/evaluate` |
 | Batch evaluate | `POST $BASE/evaluate/batch` |
-| Cache contents | `curl $BASE/admin/cache -H "x-admin-token: $ADMIN_TOKEN"` |
 | Cache counters | `curl $BASE/metrics \| grep cache_events` |
 | Metrics | `curl $BASE/metrics` |
