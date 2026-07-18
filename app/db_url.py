@@ -55,7 +55,5 @@ def normalize_database_url(url: str) -> tuple[str, dict]:
             # verify-ca / verify-full keep the default verifying context.
             connect_args["ssl"] = ctx
 
-    normalized = urlunsplit(
-        (scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
-    )
+    normalized = urlunsplit((scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
     return normalized, connect_args
